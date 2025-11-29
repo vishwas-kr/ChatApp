@@ -13,6 +13,7 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
     // MARK: - Published Properties
     @Published var conversations: [Conversation] = []
     @Published var isSocketConnected: Bool = false
+    @Published var isSocketConnecting: Bool = false
     @Published var showError: Bool = false
     @Published var errorMessage: String = ""
     @Published var isOfflineModeForced: Bool = false
@@ -79,11 +80,19 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
                 guard let self = self else { return }
 
                 if connected && !self.isOfflineModeForced {
+                    print("Network is back online, attempting to reconnect WebSocket...")
                     self.processQueue()
-
-                    if !self.isSocketConnected {
-                        self.socketManager.connect()
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if !self.isSocketConnected {
+                            print("WebSocket not connected, initiating connection...")
+                            self.isSocketConnecting = true
+                            self.socketManager.connect()
+                        }
                     }
+                } else if !connected {
+                    print("Network lost, WebSocket will disconnect")
+                    self.isSocketConnecting = false
                 }
             }
             .store(in: &cancellables)
@@ -116,12 +125,20 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
     func didChangeStatus(isConnected: Bool) {
         DispatchQueue.main.async {
             self.isSocketConnected = isConnected
+            self.isSocketConnecting = false
+            
+            print("WebSocket status changed: \(isConnected ? "Connected" : "Disconnected")")
 
             if isConnected {
                 self.processQueue()
             } else if !self.isOfflineModeForced && self.networkMonitor.isConnected {
+                print("WebSocket disconnected unexpectedly, will retry connection in 3 seconds...")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    self.socketManager.connect()
+                    if !self.isSocketConnected && self.networkMonitor.isConnected && !self.isOfflineModeForced {
+                        print("Retrying WebSocket connection...")
+                        self.isSocketConnecting = true
+                        self.socketManager.connect()
+                    }
                 }
             }
         }
@@ -135,14 +152,12 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
 
         let msg: Message
 
-        // Retry sending existing message
         if let existingID = messageID,
            let idx = conversations[chatIndex].messages.firstIndex(where: { $0.id == existingID }) {
             msg = conversations[chatIndex].messages[idx]
             conversations[chatIndex].messages[idx].status = .sending
         }
         else {
-            // New message
             msg = Message(id: UUID(), text: text, isSender: true, timestamp: Date(), status: .sending)
             conversations[chatIndex].messages.append(msg)
             conversations[chatIndex].hasUnread = false
@@ -154,7 +169,6 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
 
             updateMessageStatus(in: chatID, messageID: msg.id, status: .failed)
 
-            // Prevent duplicates by messageID
             if !messageQueue.contains(where: { $0.1 == msg.id }) {
                 messageQueue.append((chatID, msg.id, text))
             }
@@ -203,7 +217,6 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
                 conversations[chatIndex].messages[msgIndex].status = .sending
             }
 
-            // Retry
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 self.sendMessage(text, in: chatID, messageID: msgID)
             }
@@ -223,16 +236,5 @@ class ChatViewModel: ObservableObject, SocketServiceDelegate {
         guard let msgIndex = conversations[chatIndex].messages.firstIndex(where: { $0.id == messageID }) else { return }
 
         conversations[chatIndex].messages[msgIndex].status = status
-    }
-
-
-    // MARK: - Demo Tools
-    func toggleOfflineSimulation() {
-        isOfflineModeForced.toggle()
-        isOfflineModeForced ? socketManager.disconnect() : socketManager.connect()
-    }
-
-    func triggerIncomingDemo() {
-        socketManager.triggerManualIncoming(text: "This is a pushed update via Socket!")
     }
 }

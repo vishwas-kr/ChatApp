@@ -19,7 +19,6 @@ struct ChatApp: App {
         }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .background {
-                // App going to background - will be terminated soon
                 UserDefaults.standard.set(false, forKey: "appWasRunning")
             }
         }

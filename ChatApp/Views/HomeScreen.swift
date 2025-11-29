@@ -31,10 +31,26 @@ struct HomeScreen: View {
                     .listStyle(PlainListStyle())
                 }
                 
-                // Network Error Banner
-                if !viewModel.isSocketConnected || viewModel.isOfflineModeForced {
-                    VStack {
-                        Spacer()
+                // Connection Status Banners
+                VStack {
+                    Spacer()
+                    
+                    // Connecting Banner
+                    if viewModel.isSocketConnecting {
+                        HStack {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                            Text("Connecting to server...")
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange.opacity(0.9))
+                        .foregroundColor(.white)
+                        .transition(.move(edge: .bottom))
+                    }
+                    // Offline Banner
+                    else if !viewModel.isSocketConnected || viewModel.isOfflineModeForced {
                         HStack {
                             Image(systemName: "wifi.slash")
                             Text("No Connection - Offline Mode")
@@ -43,29 +59,16 @@ struct HomeScreen: View {
                         .frame(maxWidth: .infinity)
                         .background(Color.red.opacity(0.9))
                         .foregroundColor(.white)
+                        .transition(.move(edge: .bottom))
                     }
-                    .transition(.move(edge: .bottom))
-                    .animation(.easeInOut, value: viewModel.isSocketConnected)
                 }
+                .animation(.easeInOut, value: viewModel.isSocketConnecting)
+                .animation(.easeInOut, value: viewModel.isSocketConnected)
             }
             .navigationTitle("Chats")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: { viewModel.triggerIncomingDemo() }) {
-                            Label("Simulate Incoming Msg", systemImage: "arrow.down.message")
-                        }
-                        Button(action: { viewModel.toggleOfflineSimulation() }) {
-                            Label(viewModel.isOfflineModeForced ? "Go Online" : "Go Offline", systemImage: "wifi")
-                        }
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                }
-            }
-            .alert(isPresented: $viewModel.showError) {
-                Alert(title: Text("Internet Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
-            }
+//            .alert(isPresented: $viewModel.showError) {
+//                Alert(title: Text("Internet Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
+//            }
         }
         .onChange(of: scenePhase) { newPhase in
             switch newPhase {
@@ -85,6 +88,3 @@ struct HomeScreen: View {
 #Preview {
     HomeScreen()
 }
-
-
-
