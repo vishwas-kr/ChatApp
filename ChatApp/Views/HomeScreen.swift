@@ -50,7 +50,7 @@ struct HomeScreen: View {
                         .transition(.move(edge: .bottom))
                     }
                     // Offline Banner
-                    else if !viewModel.isSocketConnected || viewModel.isOfflineModeForced {
+                    else if !viewModel.isSocketConnected {
                         HStack {
                             Image(systemName: "wifi.slash")
                             Text("No Connection - Offline Mode")
@@ -66,9 +66,6 @@ struct HomeScreen: View {
                 .animation(.easeInOut, value: viewModel.isSocketConnected)
             }
             .navigationTitle("Chats")
-//            .alert(isPresented: $viewModel.showError) {
-//                Alert(title: Text("Internet Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
-//            }
         }
         .onChange(of: scenePhase) { newPhase in
             switch newPhase {
